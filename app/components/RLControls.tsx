@@ -1,17 +1,33 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
-type ProgressMsg = {
-  type: "progress";
+type ProgressMsg = { type: "progress"; episode: number; steps: number; return: number; epsilon: number; bestScore: number; episodeCleared: number };
+type DoneMsg = { type: "done" };
+type FrameMsg = {
+  type: "frame";
   episode: number;
-  steps: number;
-  return: number;
+  step: number;
   epsilon: number;
+  state: {
+    dinoX: number;
+    dinoY: number;
+    groundY: number;
+    worldWidth: number;
+    worldHeight: number;
+    speed: number;
+    score: number;
+    cleared: number;
+    obstacles: { x: number; width: number; height: number }[];
+    done: boolean;
+  };
+  bestScore: number;
 };
 
-type DoneMsg = { type: "done" };
-type EvalMsg = { type: "eval"; episode: number; steps: number };
-
-type WorkerMsg = ProgressMsg | DoneMsg | EvalMsg;
+type AutoSavedMsg = { type: "autosaved"; bestScore: number };
+type WorkerMsg = ProgressMsg | DoneMsg | FrameMsg | AutoSavedMsg;
 
 export function RLControls() {
   const workerRef = useRef<Worker | null>(null);
@@ -20,6 +36,10 @@ export function RLControls() {
   const [epsilon, setEpsilon] = useState(0);
   const [ret, setRet] = useState(0);
   const [steps, setSteps] = useState(0);
+  const [best, setBest] = useState(0);
+  const [saveAt, setSaveAt] = useState(500);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [scores, setScores] = useState<number[]>([]);
 
   useEffect(() => {
     return () => {
@@ -43,6 +63,18 @@ export function RLControls() {
           setSteps(msg.steps);
           setRet(Number(msg.return.toFixed(3)));
           setEpsilon(Number(msg.epsilon.toFixed(3)));
+          setBest(msg.bestScore ?? 0);
+          setScores((arr) => {
+            const next = arr.concat(msg.episodeCleared ?? 0);
+            // Keep last 300 for the graph
+            return next.length > 300 ? next.slice(next.length - 300) : next;
+          });
+        } else if (msg.type === "frame") {
+          drawFrame(msg);
+          setBest(msg.bestScore ?? 0);
+        } else if (msg.type === "autosaved") {
+          // Optionally, show a toast or console message
+          console.log(`Model auto-saved at score ${msg.bestScore}`);
         } else if (msg.type === "done") {
           setRunning(false);
         }
@@ -58,60 +90,118 @@ export function RLControls() {
     setEpsilon(0);
     setRet(0);
     setSteps(0);
+    setScores([]);
     w.postMessage({
       type: "start",
-      episodes: 50,
-      maxSteps: 3000,
+      episodes: 100000,
+      maxSteps: 4000,
       frameSkip: 2,
       epsilonStart: 1.0,
       epsilonEnd: 0.05,
-      epsilonDecayEpisodes: 50,
+      epsilonDecayEpisodes: 1000,
+      highScoreSaveThreshold: Number(saveAt) || 0,
     });
   }
 
-  function stop() {
-    if (workerRef.current) workerRef.current.postMessage({ type: "stop" });
+  function drawFrame(msg: FrameMsg) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const { state } = msg;
+    // Resize once
+    if (canvas.width === 0 || canvas.height === 0) {
+      const scale = Math.min(1, Math.floor(window.devicePixelRatio || 1));
+      canvas.width = state.worldWidth * scale;
+      canvas.height = state.worldHeight * scale;
+      canvas.style.width = state.worldWidth + "px";
+      canvas.style.height = state.worldHeight + "px";
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(scale, scale);
+    }
+    // Background
+    ctx.fillStyle = getComputedStyle(document.body).backgroundColor || "#fff";
+    ctx.fillRect(0, 0, state.worldWidth, state.worldHeight);
+    ctx.strokeStyle = getComputedStyle(document.body).color || "#111";
+    ctx.lineWidth = 2;
+    // Ground
+    ctx.beginPath();
+    ctx.moveTo(0, state.groundY + 10);
+    ctx.lineTo(state.worldWidth, state.groundY + 10);
+    ctx.stroke();
+    // Obstacles
+    ctx.fillStyle = ctx.strokeStyle as string;
+    for (const ob of state.obstacles) {
+      ctx.fillRect(ob.x, state.groundY + 10 - ob.height, ob.width, ob.height);
+    }
+    // Dino
+    drawDino(ctx, state.dinoX, state.dinoY, msg.step);
+    // HUD
+    ctx.font = "bold 14px Inter, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(`Obs ${state.cleared ?? 0}`, state.worldWidth - 12, 22);
+    ctx.textAlign = "left";
+    ctx.fillText(`Ep ${msg.episode}  eps ${msg.epsilon.toFixed(2)}`, 12, 22);
   }
 
-  function evalGreedy() {
-    const w = ensureWorker();
-    w.postMessage({ type: "eval", episodes: 5, maxSteps: 4000 });
+  function drawDino(ctx: CanvasRenderingContext2D, x: number, y: number, step: number) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = ctx.strokeStyle as string;
+    ctx.fillRect(-20, -30, 40, 30);
+    ctx.fillRect(10, -50, 20, 20);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(24, -44, 4, 4);
+    ctx.fillStyle = "#111";
+    const legOffset = Math.sin(step / 5) > 0 ? 0 : 4;
+    ctx.fillRect(-16, 0, 10, 10);
+    ctx.fillRect(6 + legOffset, 0, 10, 10);
+    ctx.restore();
   }
 
   return (
-    <div className="mt-6 p-3 border rounded text-sm max-w-[800px] w-full">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="font-semibold">RL Trainer</div>
-        <div className="flex items-center gap-2">
-          <button
-            className="px-3 py-1 rounded bg-gray-900 text-white disabled:opacity-50 dark:bg-gray-100 dark:text-black"
-            onClick={start}
-            disabled={running}
-          >
-            Start
-          </button>
-          <button
-            className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-800"
-            onClick={stop}
-            disabled={!running}
-          >
-            Stop
-          </button>
-          <button className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-800" onClick={evalGreedy}>
-            Eval (greedy)
-          </button>
+    <Card className="mt-6 w-full max-w-[980px]">
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle>RL Trainer</CardTitle>
+          <div className="text-xs text-gray-500">Live training with DQN + Dino physics</div>
         </div>
-      </div>
-      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <Metric label="Episode" value={episode} />
-        <Metric label="Steps" value={steps} />
-        <Metric label="Return" value={ret} />
-        <Metric label="Epsilon" value={epsilon} />
-      </div>
-      <div className="mt-2 text-gray-500">
-        Training runs headless in a Web Worker using DQN over the physics env.
-      </div>
-    </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="saveAt">Save at obstacles ≥</Label>
+            <Input
+              id="saveAt"
+              type="number"
+              min={0}
+              value={saveAt}
+              onChange={(e) => setSaveAt(parseInt(e.target.value || "0", 10))}
+              className="w-24"
+            />
+          </div>
+          <Button onClick={start} disabled={running}>
+            Start
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Metric label="Episode" value={episode} />
+          <Metric label="Steps" value={steps} />
+          <Metric label="Return" value={ret} />
+          <Metric label="Best" value={best} />
+        </div>
+        <div className="mt-1 text-xs text-gray-500">Epsilon: {epsilon.toFixed(2)}</div>
+        <LearningGraph scores={scores} />
+        <div className="mt-4 flex justify-center">
+          <canvas
+            ref={canvasRef}
+            role="img"
+            aria-label="Training visualization"
+            className="border border-gray-200 dark:border-gray-800 rounded-lg"
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -124,3 +214,41 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
+function LearningGraph({ scores }: { scores: number[] }) {
+  const width = 800;
+  const height = 120;
+  const pad = 6;
+  const n = scores.length;
+  if (n === 0) return null;
+  const max = Math.max(1, ...scores);
+  const stepX = (width - pad * 2) / Math.max(1, n - 1);
+  const pts = scores
+    .map((s, i) => {
+      const x = pad + i * stepX;
+      const y = pad + (height - pad * 2) * (1 - s / max);
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const last = scores[n - 1] ?? 0;
+  const avg50 = avg(scores.slice(-50));
+  const avg200 = avg(scores.slice(-200));
+  return (
+    <div className="mt-4 w-full max-w-[800px]">
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>Episode scores (obstacles cleared)</span>
+        <span>
+          Last {last} • Avg50 {avg50.toFixed(1)} • Avg200 {avg200.toFixed(1)} • Max {max}
+        </span>
+      </div>
+      <svg width={width} height={height} className="mt-1 w-full">
+        <rect x={0} y={0} width={width} height={height} fill="none" />
+        <polyline fill="none" stroke="currentColor" strokeWidth={2} points={pts} />
+      </svg>
+    </div>
+  );
+}
+
+function avg(a: number[]) {
+  if (a.length === 0) return 0;
+  return a.reduce((s, v) => s + v, 0) / a.length;
+}

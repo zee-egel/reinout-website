@@ -1,4 +1,4 @@
-export type Obstacle = { x: number; width: number; height: number };
+export type Obstacle = { x: number; width: number; height: number; passed?: boolean };
 
 export type StepInput = {
   jump?: boolean;
@@ -11,6 +11,7 @@ export type StepResult = {
   speed: number;
   dinoY: number;
   obstacles: ReadonlyArray<Obstacle>;
+  obstaclesCleared: number;
 };
 
 export class DinoPhysics {
@@ -31,6 +32,7 @@ export class DinoPhysics {
   private spawnCooldown = 0; // frames
   private scoreInt = 0;
   private scoreAcc = 0; // fractional accumulator
+  private _obstaclesCleared = 0;
 
   // Internal time (frames)
   private t = 0;
@@ -47,6 +49,9 @@ export class DinoPhysics {
   get score() {
     return this.scoreInt;
   }
+  get obstaclesCleared() {
+    return this._obstaclesCleared;
+  }
 
   reset() {
     this.velY = 0;
@@ -57,6 +62,7 @@ export class DinoPhysics {
     this.scoreInt = 0;
     this.scoreAcc = 0;
     this.t = 0;
+    this._obstaclesCleared = 0;
   }
 
   // Advance by `frames` (can be fractional). Returns whether episode ended and snapshot.
@@ -87,7 +93,13 @@ export class DinoPhysics {
     }
 
     // Move obstacles and cull off-screen
-    for (const ob of this._obstacles) ob.x -= this._speed * f;
+    for (const ob of this._obstacles) {
+      ob.x -= this._speed * f;
+      if (!ob.passed && ob.x + ob.width < this.dinoX) {
+        ob.passed = true;
+        this._obstaclesCleared += 1;
+      }
+    }
     while (
       this._obstacles.length &&
       this._obstacles[0].x + this._obstacles[0].width < 0
@@ -130,6 +142,7 @@ export class DinoPhysics {
       speed: this._speed,
       dinoY: this._dinoY,
       obstacles: this._obstacles,
+      obstaclesCleared: this._obstaclesCleared,
     };
   }
 }

@@ -16,6 +16,7 @@ type StartMsg = {
   epsilonStart?: number;
   epsilonEnd?: number;
   epsilonDecayEpisodes?: number;
+  highScoreSaveThreshold?: number;
 };
 
 type StopMsg = { type: "stop" };
@@ -24,6 +25,7 @@ type EvalMsg = { type: "eval"; episodes?: number; maxSteps?: number };
 type InMsg = StartMsg | StopMsg | EvalMsg;
 
 let shouldStop = false;
+let currentAgent: Agent | null = null;
 
 function toAction(idx: number): Action {
   return idx === 1 ? Action.Jump : Action.Idle; // 2 actions for now
@@ -46,6 +48,7 @@ async function trainLoop(opts: StartMsg) {
     replaySize: 100_000,
   });
   agent.epsilon = opts.epsilonStart ?? 1.0;
+  currentAgent = agent;
 
   const episodes = opts.episodes ?? 50;
   const maxSteps = opts.maxSteps ?? 2000;
@@ -53,6 +56,13 @@ async function trainLoop(opts: StartMsg) {
   const epsDecay = Math.max(1, opts.epsilonDecayEpisodes ?? episodes);
 
   shouldStop = false;
+  let lastFrameAt = 0;
+  let bestScore = 0;
+  const saveThreshold =
+    typeof opts.highScoreSaveThreshold === "number"
+      ? opts.highScoreSaveThreshold
+      : Number.POSITIVE_INFINITY;
+  let hasAutoSaved = false;
 
   for (let ep = 1; ep <= episodes && !shouldStop; ep++) {
     let obs = env.reset();
@@ -66,12 +76,7 @@ async function trainLoop(opts: StartMsg) {
         actionIdx = (Math.random() * actionSize) | 0;
       else actionIdx = await agent.selectAction(obs as Obs);
 
-      const {
-        obs: nextObs,
-        reward,
-        done,
-        info,
-      } = env.step(toAction(actionIdx));
+      const { obs: nextObs, reward, done } = env.step(toAction(actionIdx));
 
       const transition: Transition = {
         obs: obs as Obs,
@@ -85,8 +90,55 @@ async function trainLoop(opts: StartMsg) {
 
       totalReward += reward;
       obs = nextObs;
+
+      // Track best obstacles cleared and auto-save if threshold reached
+      const p: any = (env as any).physics;
+      const cleared: number = p.obstaclesCleared ?? 0;
+      if (cleared > bestScore) {
+        bestScore = cleared;
+        if (
+          !hasAutoSaved &&
+          bestScore >= saveThreshold &&
+          (agent as any).save
+        ) {
+          try {
+            await (agent as any).save();
+            hasAutoSaved = true;
+            (self as any).postMessage({ type: "autosaved", bestScore });
+          } catch {}
+        }
+      }
+
+      // Stream a throttled frame to visualize training
+      const now = performance.now();
+      if (now - lastFrameAt > 50) {
+        lastFrameAt = now;
+        (self as any).postMessage({
+          type: "frame",
+          episode: ep,
+          step: steps,
+          epsilon: agent.epsilon,
+          state: {
+            dinoX: p.dinoX,
+            dinoY: p.dinoY,
+            groundY: p.groundY,
+            worldWidth: p.worldWidth,
+            worldHeight: p.worldHeight,
+            speed: p.speed,
+            score: p.score,
+            cleared,
+            obstacles: p.obstacles,
+            done,
+          },
+          bestScore,
+        });
+      }
       if (done) break;
     }
+
+    // Episode metrics
+    const pEnd: any = (env as any).physics;
+    const episodeCleared: number = pEnd.obstaclesCleared ?? 0;
 
     // Anneal epsilon linearly
     const frac = Math.min(1, ep / epsDecay);
@@ -98,6 +150,8 @@ async function trainLoop(opts: StartMsg) {
       steps,
       return: totalReward,
       epsilon: agent.epsilon,
+      bestScore,
+      episodeCleared,
     });
   }
 
@@ -133,3 +187,21 @@ self.onmessage = (ev: MessageEvent<InMsg>) => {
   else if (msg.type === "stop") shouldStop = true;
   else if (msg.type === "eval") evalLoop(msg);
 };
+
+// Optional: allow UI to trigger save of current model
+self.addEventListener("message", async (ev: MessageEvent<any>) => {
+  const msg = ev.data;
+  if (msg && msg.type === "save") {
+    try {
+      if (currentAgent && currentAgent.save) {
+        await currentAgent.save();
+        (self as any).postMessage({ type: "saved" });
+      }
+    } catch (e) {
+      (self as any).postMessage({
+        type: "error",
+        error: (e as Error).message || String(e),
+      });
+    }
+  }
+});

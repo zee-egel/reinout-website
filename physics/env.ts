@@ -16,7 +16,7 @@ export type StepOut = {
   info?: { score: number };
 };
 
-export const OBS_SIZE = 6; // [yRel, speed, dist, width, height, grounded]
+export const OBS_SIZE = 7; // [yRel, speed, dist, tti, width, height, grounded]
 
 export type EnvOptions = {
   frameSkip?: number; // repeat action K frames
@@ -28,6 +28,13 @@ export class DinoEnv {
 
   private lastScore = 0;
   private terminated = false;
+  // Reward shaping parameters
+  private readonly surviveReward = 0.01; // per step (scaled by frameSkip)
+  private readonly progressScale = 0.001; // per score delta
+  private readonly clearReward = 1.0; // per obstacle cleared
+  private readonly jumpProximityBonus = 0.02; // bonus when jumping near obstacle
+  private readonly jumpFarPenalty = -0.01; // small cost for jumping when nothing is near
+  private readonly jumpProximityThreshold = 0.25; // normalized distance
 
   constructor(opts: EnvOptions = {}) {
     this.physics = new DinoPhysics();
@@ -50,6 +57,17 @@ export class DinoEnv {
 
     // Repeat action for frameSkip frames; trigger jump only on first frame
     let done = false;
+    // Count obstacles already passed before stepping
+    const preCleared = (this.physics as any).obstaclesCleared as number;
+    // Whether an obstacle is within proximity ahead right now
+    let nearAhead = false;
+    for (const ob of this.physics.obstacles) {
+      if (ob.x + ob.width > this.physics.dinoX) {
+        const distNorm = Math.max(0, Math.min(1, (ob.x - this.physics.dinoX) / this.physics.worldWidth));
+        nearAhead = distNorm < this.jumpProximityThreshold;
+        break;
+      }
+    }
     for (let k = 0; k < this.frameSkip; k++) {
       const res = this.physics.step({ jump: action === Action.Jump && k === 0, duck: action === Action.Duck }, 1);
       if (res.done) {
@@ -64,7 +82,16 @@ export class DinoEnv {
     const score = this.physics.score;
     const deltaScore = Math.max(0, score - this.lastScore);
     this.lastScore = score;
-    let reward = 0.01 * this.frameSkip + 0.001 * deltaScore; // survive + progress
+    // Base rewards: survival + progress
+    let reward = this.surviveReward * this.frameSkip + this.progressScale * deltaScore;
+    // Obstacles cleared since before step
+    const postCleared = (this.physics as any).obstaclesCleared as number;
+    const clearedDelta = Math.max(0, postCleared - preCleared);
+    reward += this.clearReward * clearedDelta;
+    // Encourage jumping near obstacles; discourage jumping randomly
+    if (action === Action.Jump) {
+      reward += nearAhead ? this.jumpProximityBonus : this.jumpFarPenalty;
+    }
     if (done) reward = -1.0;
 
     if (done) this.terminated = true;
@@ -72,33 +99,41 @@ export class DinoEnv {
   }
 
   private observe(): Obs {
-    const p = this.physics;
-    // Dino vertical position relative to ground (1 at ground, <1 in air)
-    const yRel = p.dinoY / p.groundY; // ~[0.7, 1.0]
-    const speedNorm = p.speed / (p.baseSpeed + 8);
-
-    // Next obstacle features
-    let dist = 1;
-    let w = 0;
-    let h = 0;
-    for (const ob of p.obstacles) {
-      if (ob.x + ob.width > p.dinoX) {
-        dist = Math.max(0, Math.min(1, (ob.x - p.dinoX) / p.worldWidth));
-        w = Math.max(0, Math.min(1, ob.width / 60));
-        h = Math.max(0, Math.min(1, ob.height / 60));
-        break;
-      }
-    }
-
-    const grounded = p.dinoY >= p.groundY ? 1 : 0;
-
-    const obs = new Float32Array(OBS_SIZE);
-    obs[0] = yRel;
-    obs[1] = speedNorm;
-    obs[2] = dist;
-    obs[3] = w;
-    obs[4] = h;
-    obs[5] = grounded;
-    return obs;
+    return buildObservationFromPhysics(this.physics);
   }
+}
+
+// Exported helper to build observations from a DinoPhysics instance.
+export function buildObservationFromPhysics(p: DinoPhysics): Obs {
+  const yRel = p.dinoY / p.groundY;
+  const speedNorm = p.speed / (p.baseSpeed + 8);
+
+  // Distances and time-to-impact for the nearest obstacle
+  let distNorm = 1;
+  let ttiNorm = 1; // normalized to ~1 second horizon
+  let w = 0;
+  let h = 0;
+  for (const ob of p.obstacles) {
+    if (ob.x + ob.width > p.dinoX) {
+      const distPx = Math.max(0, ob.x - p.dinoX);
+      distNorm = Math.max(0, Math.min(1, distPx / p.worldWidth));
+      const ttiFrames = distPx / Math.max(1e-6, p.speed);
+      ttiNorm = Math.max(0, Math.min(1, ttiFrames / 60));
+      w = Math.max(0, Math.min(1, ob.width / 60));
+      h = Math.max(0, Math.min(1, ob.height / 60));
+      break;
+    }
+  }
+
+  const grounded = p.dinoY >= p.groundY ? 1 : 0;
+
+  const obs = new Float32Array(OBS_SIZE);
+  obs[0] = yRel;
+  obs[1] = speedNorm;
+  obs[2] = distNorm;
+  obs[3] = ttiNorm;
+  obs[4] = w;
+  obs[5] = h;
+  obs[6] = grounded;
+  return obs;
 }
