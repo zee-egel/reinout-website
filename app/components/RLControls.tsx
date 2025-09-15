@@ -94,11 +94,11 @@ export function RLControls() {
     w.postMessage({
       type: "start",
       episodes: 100000,
-      maxSteps: 4000,
-      frameSkip: 2,
+      maxSteps: 2000,
+      frameSkip: 3,
       epsilonStart: 1.0,
-      epsilonEnd: 0.05,
-      epsilonDecayEpisodes: 1000,
+      epsilonEnd: 0.1,
+      epsilonDecayEpisodes: 200,
       highScoreSaveThreshold: Number(saveAt) || 0,
     });
   }

@@ -39,12 +39,12 @@ async function trainLoop(opts: StartMsg) {
     actionSize,
     hiddenSizes: [128, 128],
     gamma: 0.99,
-    lr: 1e-3,
-    batchSize: 128,
-    updateEvery: 4,
+    lr: 5e-4,
+    batchSize: 64,
+    updateEvery: 2,
     targetSync: 2000,
-    tau: 0.0,
-    warmup: 1000,
+    tau: 0.005,
+    warmup: 500,
     replaySize: 100_000,
   });
   agent.epsilon = opts.epsilonStart ?? 1.0;

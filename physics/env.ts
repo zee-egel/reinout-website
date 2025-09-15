@@ -29,11 +29,11 @@ export class DinoEnv {
   private lastScore = 0;
   private terminated = false;
   // Reward shaping parameters
-  private readonly surviveReward = 0.01; // per step (scaled by frameSkip)
-  private readonly progressScale = 0.001; // per score delta
-  private readonly clearReward = 1.0; // per obstacle cleared
-  private readonly jumpProximityBonus = 0.02; // bonus when jumping near obstacle
-  private readonly jumpFarPenalty = -0.01; // small cost for jumping when nothing is near
+  private readonly surviveReward = 0.003; // smaller survival reward
+  private readonly progressScale = 0.0005; // smaller distance shaping
+  private readonly clearReward = 2.0; // stronger signal when clearing an obstacle
+  private readonly jumpProximityBonus = 0.05; // stronger incentive to time jumps
+  private readonly jumpFarPenalty = -0.02; // stronger penalty against random jumps
   private readonly jumpProximityThreshold = 0.25; // normalized distance
 
   constructor(opts: EnvOptions = {}) {
