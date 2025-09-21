@@ -1,4 +1,13 @@
-export type Obstacle = { x: number; width: number; height: number; passed?: boolean };
+export type Obstacle = {
+  x: number;
+  width: number;
+  height: number;
+  passed?: boolean;
+  kind?: "letter" | "cactus";
+  letter?: string;
+  color?: string;
+  sequenceIndex?: number;
+};
 
 export type StepInput = {
   jump?: boolean;
@@ -12,6 +21,9 @@ export type StepResult = {
   dinoY: number;
   obstacles: ReadonlyArray<Obstacle>;
   obstaclesCleared: number;
+  letterSequenceProgress: number;
+  letterSequenceTotal: number;
+  letterSequenceJustCompleted: boolean;
 };
 
 export class DinoPhysics {
@@ -24,6 +36,8 @@ export class DinoPhysics {
   readonly jumpVelocity = -14; // px/frame
   readonly baseSpeed = 6; // px/frame
 
+  private readonly celebratoryRun: boolean;
+
   // Mutable state
   private velY = 0;
   private _dinoY = this.groundY;
@@ -33,9 +47,26 @@ export class DinoPhysics {
   private scoreInt = 0;
   private scoreAcc = 0; // fractional accumulator
   private _obstaclesCleared = 0;
+  private letterQueueIndex = 0;
+  private letterProgress = 0;
+  private letterCelebrated = false;
+
+  private readonly letterSequence = [
+    { letter: "R", color: "#ff4d4d" },
+    { letter: "E", color: "#ff8a00" },
+    { letter: "I", color: "#ffd60a" },
+    { letter: "N", color: "#2ec27e" },
+    { letter: "O", color: "#339dff" },
+    { letter: "U", color: "#7b4dff" },
+    { letter: "T", color: "#d948e8" },
+  ] as const;
 
   // Internal time (frames)
   private t = 0;
+
+  constructor(opts: { celebratoryRun?: boolean } = {}) {
+    this.celebratoryRun = opts.celebratoryRun ?? false;
+  }
 
   get dinoY() {
     return this._dinoY;
@@ -63,6 +94,9 @@ export class DinoPhysics {
     this.scoreAcc = 0;
     this.t = 0;
     this._obstaclesCleared = 0;
+    this.letterQueueIndex = 0;
+    this.letterProgress = 0;
+    this.letterCelebrated = false;
   }
 
   // Advance by `frames` (can be fractional). Returns whether episode ended and snapshot.
@@ -86,10 +120,32 @@ export class DinoPhysics {
     // Spawn obstacles
     this.spawnCooldown -= f;
     if (this.spawnCooldown <= 0) {
-      const height = 20 + Math.floor(Math.random() * 30); // 20–50
-      const width = 10 + Math.floor(Math.random() * 20); // 10–30
-      this._obstacles.push({ x: this.worldWidth + 20, width, height });
-      this.spawnCooldown = 60 + Math.random() * 40; // frames
+      if (this.celebratoryRun && this.letterQueueIndex < this.letterSequence.length) {
+        const seq = this.letterSequence[this.letterQueueIndex];
+        const width = 46;
+        const height = 70;
+        this._obstacles.push({
+          x: this.worldWidth + 40,
+          width,
+          height,
+          kind: "letter",
+          letter: seq.letter,
+          color: seq.color,
+          sequenceIndex: this.letterQueueIndex,
+        });
+        this.letterQueueIndex += 1;
+        this.spawnCooldown = 80;
+      } else if (!this.celebratoryRun) {
+        const height = 20 + Math.floor(Math.random() * 30); // 20–50
+        const width = 10 + Math.floor(Math.random() * 20); // 10–30
+        this._obstacles.push({
+          x: this.worldWidth + 20,
+          width,
+          height,
+          kind: "cactus",
+        });
+        this.spawnCooldown = 60 + Math.random() * 40; // frames
+      }
     }
 
     // Move obstacles and cull off-screen
@@ -98,6 +154,12 @@ export class DinoPhysics {
       if (!ob.passed && ob.x + ob.width < this.dinoX) {
         ob.passed = true;
         this._obstaclesCleared += 1;
+        if (this.celebratoryRun && ob.kind === "letter") {
+          this.letterProgress = Math.min(
+            this.letterSequence.length,
+            this.letterProgress + 1
+          );
+        }
       }
     }
     while (
@@ -105,6 +167,17 @@ export class DinoPhysics {
       this._obstacles[0].x + this._obstacles[0].width < 0
     ) {
       this._obstacles.shift();
+    }
+
+    const lettersTotal = this.celebratoryRun ? this.letterSequence.length : 0;
+    const justCompleted =
+      this.celebratoryRun &&
+      !this.letterCelebrated &&
+      lettersTotal > 0 &&
+      this.letterProgress >= lettersTotal;
+    if (justCompleted) {
+      this.letterCelebrated = true;
+      this.spawnCooldown = Number.POSITIVE_INFINITY;
     }
 
     // Collision check
@@ -143,6 +216,9 @@ export class DinoPhysics {
       dinoY: this._dinoY,
       obstacles: this._obstacles,
       obstaclesCleared: this._obstaclesCleared,
+      letterSequenceProgress: this.letterProgress,
+      letterSequenceTotal: lettersTotal,
+      letterSequenceJustCompleted: justCompleted,
     };
   }
 }
