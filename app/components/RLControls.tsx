@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -160,56 +160,93 @@ export function RLControls() {
   }
 
   return (
-    <Card className="mt-6 w-full max-w-[980px]">
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <div>
-          <CardTitle>RL Trainer</CardTitle>
-          <div className="text-xs text-gray-500">Live training with DQN + Dino physics</div>
+    <Card className="w-full overflow-hidden rounded-2xl border border-gray-200/70 shadow-[0_40px_120px_-60px_rgba(8,47,73,0.55)] dark:border-gray-800/70">
+      <CardHeader className="flex flex-col gap-6 bg-gradient-to-br from-sky-100/70 via-white/80 to-transparent px-6 py-6 dark:from-sky-950/40 dark:via-gray-950/70 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-3 text-left">
+          <span className="inline-flex items-center gap-2 rounded-full border border-sky-300/60 bg-white/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-sky-600/90 shadow-sm backdrop-blur dark:border-sky-700/60 dark:bg-sky-950/40 dark:text-sky-300/90">
+            RL Console
+          </span>
+          <CardTitle className="text-2xl font-semibold text-gray-900 dark:text-gray-50">
+            Dino DQN Control Room
+          </CardTitle>
+          <CardDescription className="max-w-xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+            Launch autonomous runs, monitor telemetry, and stream frames while the agent learns the terrain.
+            Built for future models and experiments.
+          </CardDescription>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="saveAt">Save at obstacles ≥</Label>
-            <Input
-              id="saveAt"
-              type="number"
-              min={0}
-              value={saveAt}
-              onChange={(e) => setSaveAt(parseInt(e.target.value || "0", 10))}
-              className="w-24"
-            />
+        <div className="flex w-full flex-col gap-3 sm:w-[280px]">
+          <div className="flex flex-col gap-2 text-left">
+            <Label htmlFor="saveAt" className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-500 dark:text-gray-400">
+              Autosave threshold
+            </Label>
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200/70 bg-white/80 px-3 py-2 text-sm shadow-sm backdrop-blur-sm dark:border-gray-800/70 dark:bg-gray-950/70">
+              <Input
+                id="saveAt"
+                type="number"
+                min={0}
+                value={saveAt}
+                onChange={(e) => setSaveAt(parseInt(e.target.value || "0", 10))}
+                className="w-20 border-none bg-transparent p-0 text-right text-base font-semibold text-gray-900 focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-gray-50"
+              />
+              <span className="text-xs font-medium uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">
+                obs
+              </span>
+            </div>
           </div>
-          <Button onClick={start} disabled={running}>
-            Start
+          <Button
+            onClick={start}
+            disabled={running}
+            className="h-11 rounded-xl text-sm font-semibold shadow-md transition-shadow hover:shadow-lg disabled:shadow-none"
+          >
+            {running ? "Training..." : "Launch Run"}
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Metric label="Episode" value={episode} />
-          <Metric label="Steps" value={steps} />
-          <Metric label="Return" value={ret} />
-          <Metric label="Best" value={best} />
+      <CardContent className="space-y-8 px-6 pb-6 pt-0">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Episode" value={episode.toLocaleString()} />
+          <Metric label="Steps" value={steps.toLocaleString()} />
+          <Metric label="Return" value={ret.toFixed(2)} />
+          <Metric label="Best Score" value={best.toLocaleString()} />
         </div>
-        <div className="mt-1 text-xs text-gray-500">Epsilon: {epsilon.toFixed(2)}</div>
-        <LearningGraph scores={scores} />
-        <div className="mt-4 flex justify-center">
-          <canvas
-            ref={canvasRef}
-            role="img"
-            aria-label="Training visualization"
-            className="border border-gray-200 dark:border-gray-800 rounded-lg"
-          />
+        <div className="flex flex-col gap-2 text-xs text-gray-500 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Epsilon <span className="font-semibold text-gray-700 dark:text-gray-200">{epsilon.toFixed(2)}</span>
+          </span>
+          <span>Autosaving models when obstacles cleared ≥ {saveAt}</span>
+          <span className="text-emerald-600 dark:text-emerald-400">{running ? "Agent running — streaming frames" : "Idle — launch a run to collect data"}</span>
+        </div>
+        {scores.length > 0 ? (
+          <LearningGraph scores={scores} />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-300/70 bg-white/60 px-6 py-10 text-center text-sm text-gray-500 dark:border-gray-700/70 dark:bg-gray-900/40 dark:text-gray-400">
+            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">No runs yet</span>
+            <p>Kick off training to populate telemetry and chart progress here.</p>
+          </div>
+        )}
+        <div className="relative overflow-hidden rounded-2xl border border-gray-200/70 bg-white/70 p-4 shadow-inner backdrop-blur dark:border-gray-800/70 dark:bg-gray-950/70">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(12,74,110,0.12),_transparent_65%)] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.1),_transparent_60%)]" aria-hidden="true" />
+          <div className="relative flex justify-center">
+            <canvas
+              ref={canvasRef}
+              role="img"
+              aria-label="Training visualization"
+              className="max-w-full rounded-xl border border-gray-200/60 bg-transparent dark:border-gray-800/60"
+            />
+          </div>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="p-2 rounded border text-center">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-base font-mono">{value}</div>
+    <div className="rounded-xl border border-gray-200/70 bg-white/75 px-4 py-3 text-left shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800/70 dark:bg-gray-950/70">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">
+        {label}
+      </div>
+      <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-50">{value}</div>
     </div>
   );
 }
@@ -219,7 +256,6 @@ function LearningGraph({ scores }: { scores: number[] }) {
   const height = 120;
   const pad = 6;
   const n = scores.length;
-  if (n === 0) return null;
   const max = Math.max(1, ...scores);
   const stepX = (width - pad * 2) / Math.max(1, n - 1);
   const pts = scores
@@ -233,16 +269,31 @@ function LearningGraph({ scores }: { scores: number[] }) {
   const avg50 = avg(scores.slice(-50));
   const avg200 = avg(scores.slice(-200));
   return (
-    <div className="mt-4 w-full max-w-[800px]">
-      <div className="flex items-center justify-between text-xs text-gray-500">
-        <span>Episode scores (obstacles cleared)</span>
-        <span>
-          Last {last} • Avg50 {avg50.toFixed(1)} • Avg200 {avg200.toFixed(1)} • Max {max}
+    <div className="w-full max-w-[800px]">
+      <div className="flex flex-col gap-2 text-xs text-gray-500 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-semibold uppercase tracking-[0.25em] text-gray-400 dark:text-gray-500">
+          Episode telemetry
+        </span>
+        <span className="space-x-2 text-[11px]">
+          <span>Last {last}</span>
+          <span>Avg50 {avg50.toFixed(1)}</span>
+          <span>Avg200 {avg200.toFixed(1)}</span>
+          <span>Max {max}</span>
         </span>
       </div>
-      <svg width={width} height={height} className="mt-1 w-full">
-        <rect x={0} y={0} width={width} height={height} fill="none" />
-        <polyline fill="none" stroke="currentColor" strokeWidth={2} points={pts} />
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="mt-3 w-full overflow-visible rounded-xl border border-gray-200/70 bg-white/70 p-3 text-sky-600 shadow-sm dark:border-gray-800/70 dark:bg-gray-950/70 dark:text-sky-300"
+        role="img"
+        aria-label="Episode scores over recent runs"
+      >
+        <defs>
+          <linearGradient id="scoreLine" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.3" />
+          </linearGradient>
+        </defs>
+        <polyline fill="none" stroke="url(#scoreLine)" strokeWidth={3} strokeLinecap="round" points={pts} />
       </svg>
     </div>
   );
