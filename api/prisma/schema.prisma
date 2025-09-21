@@ -1,0 +1,110 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  ADMIN
+  OWNER
+  COLLABORATOR
+}
+
+enum ProjectStatus {
+  DRAFT
+  IN_PROGRESS
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ContributionRole {
+  LEAD
+  MAINTAINER
+  DESIGNER
+  REVIEWER
+  CONTRIBUTOR
+}
+
+model User {
+  id          String                 @id @default(cuid())
+  email       String                 @unique
+  displayName String
+  bio         String?
+  role        UserRole               @default(OWNER)
+  avatarUrl   String?
+  websiteUrl  String?
+  location    String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  sessions    Session[]
+  projects    Project[]              @relation("ProjectOwner")
+  contributions ProjectContribution[]
+
+  @@index([displayName])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  lastSeenAt   DateTime?
+  userAgent    String?
+  ipAddress    String?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Project {
+  id             String                 @id @default(cuid())
+  ownerId        String
+  slug           String                 @unique
+  title          String
+  summary        String?
+  description    String?
+  repoUrl        String?
+  liveUrl        String?
+  coverImageUrl  String?
+  highlight      Boolean                @default(false)
+  status         ProjectStatus          @default(DRAFT)
+  techStack      String[]               @default([])
+  keywords       String[]               @default([])
+  problemSolved  String?
+  impact         String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  featuredSince  DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  owner          User                   @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  collaborators  ProjectContribution[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([highlight])
+}
+
+model ProjectContribution {
+  id          String            @id @default(cuid())
+  projectId   String
+  userId      String
+  role        ContributionRole  @default(CONTRIBUTOR)
+  description String?
+  order       Int               @default(0)
+  createdAt   DateTime          @default(now())
+
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
