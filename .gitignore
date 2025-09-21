@@ -8,3 +8,4 @@
 # Environment files (root only)
 /.env
 /.env.*
+node_modules
