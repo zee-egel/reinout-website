@@ -32,36 +32,54 @@ export function Homepage() {
           </div>
 
           <TabsContent value="play" className="flex flex-col">
-            <section className="relative overflow-hidden rounded-3xl border border-gray-200/80 bg-white/80 px-6 py-12 shadow-[0_40px_120px_-60px_rgba(15,23,42,0.8)] backdrop-blur-xl dark:border-gray-800/80 dark:bg-gray-950/60">
-              <div className="absolute -left-10 top-16 h-40 w-40 rounded-full bg-emerald-400/30 blur-3xl dark:bg-emerald-500/20" aria-hidden="true" />
-              <div className="absolute -right-12 top-[-6rem] h-64 w-64 rounded-full bg-indigo-400/30 blur-3xl dark:bg-indigo-500/20" aria-hidden="true" />
-              <div className="absolute inset-x-8 bottom-8 h-px bg-gradient-to-r from-transparent via-gray-300/60 to-transparent dark:via-gray-700/60" aria-hidden="true" />
+            <section className="relative overflow-hidden rounded-3xl border border-gray-200/80 bg-white/85 px-6 py-12 shadow-[0_40px_120px_-60px_rgba(15,23,42,0.55)] backdrop-blur-xl dark:border-gray-800/80 dark:bg-gray-950/60">
+              <div className="absolute -left-14 top-24 h-44 w-44 rounded-full bg-emerald-400/25 blur-3xl dark:bg-emerald-500/20" aria-hidden="true" />
+              <div className="absolute -right-10 top-[-5rem] h-64 w-64 rounded-full bg-indigo-400/25 blur-3xl dark:bg-indigo-500/20" aria-hidden="true" />
+              <div className="absolute inset-x-10 bottom-10 h-px bg-gradient-to-r from-transparent via-gray-300/60 to-transparent dark:via-gray-700/60" aria-hidden="true" />
 
-              <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center gap-8 text-center">
-                <span className="rounded-full border border-gray-300/70 bg-white/70 px-4 py-1 text-xs font-semibold uppercase tracking-[0.45em] text-gray-500 shadow-sm backdrop-blur dark:border-gray-700/70 dark:bg-gray-900/70 dark:text-gray-300">
-                  Play Mode
-                </span>
-                <div className="space-y-3">
-                  <h2 className="text-3xl font-semibold text-gray-900 dark:text-gray-50 sm:text-4xl">
-                    Take the Dino for a Midnight Run
-                  </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 sm:text-base">
-                    Center stage is yours. Tap space to leap, arrow down to duck, and chase a new high score.
-                    The experience adapts to your theme, so the night mode glows just right.
-                  </p>
-                </div>
-                <div className="w-full max-w-[640px] rounded-2xl border border-gray-200/80 bg-white/90 p-6 shadow-lg ring-1 ring-black/5 backdrop-blur-sm dark:border-gray-800/80 dark:bg-gray-950/80 dark:ring-white/10">
-                  <div className="flex items-center justify-center">
-                    <DinoGame />
+              <div className="relative z-10 mx-auto grid max-w-[min(100%,_1200px)] items-center gap-10 text-center lg:grid-cols-[1.05fr_minmax(0,1fr)] lg:text-left">
+                <div className="flex flex-col items-center gap-6 lg:items-start">
+                  <span className="rounded-full border border-gray-300/70 bg-white/70 px-4 py-1 text-xs font-semibold uppercase tracking-[0.45em] text-gray-500 shadow-sm backdrop-blur dark:border-gray-700/70 dark:bg-gray-900/70 dark:text-gray-300">
+                    Play Mode
+                  </span>
+                  <div className="space-y-4">
+                    <h2 className="text-3xl font-semibold text-gray-900 dark:text-gray-50 sm:text-4xl">
+                      Take the Dino for a Midnight Run
+                    </h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 sm:text-base">
+                      The arcade is tuned for flow—tap space to leap, arrow down to duck, and chase a new high score.
+                      Lighting adjusts with your theme so the midnight desert always feels alive.
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500 sm:flex-row">
+                    <span>Space · Jump</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span>Arrow ↓ · Duck</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span>Highscore persists locally</span>
                   </div>
                 </div>
-                <dl className="flex flex-col items-center gap-2 text-xs font-medium uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500 sm:flex-row">
-                  <div>Space · Jump</div>
-                  <div className="hidden sm:inline">•</div>
-                  <div>Arrow ↓ · Duck</div>
-                  <div className="hidden sm:inline">•</div>
-                  <div>Highscore lives on in LocalStorage</div>
-                </dl>
+
+                <div className="relative flex w-full flex-col items-center gap-6">
+                  <div className="pointer-events-none absolute -right-12 -top-10 h-36 w-36 rounded-full bg-blue-200/30 blur-3xl dark:bg-blue-400/20" aria-hidden="true" />
+                  <div className="relative w-full max-w-[min(100%,_1360px)]">
+                    <div className="absolute inset-0 translate-y-8 rounded-[32px] bg-gradient-to-r from-slate-900/10 to-transparent blur-3xl dark:from-slate-900/35" aria-hidden="true" />
+                    <div className="relative overflow-hidden rounded-[32px] border border-white/80 bg-[linear-gradient(135deg,_rgba(255,255,255,0.35),_rgba(241,245,249,0.78))] p-5 shadow-[0_25px_80px_-45px_rgba(15,23,42,0.85)] backdrop-blur-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,_rgba(15,23,42,0.78),_rgba(30,41,59,0.68))]">
+                      <div className="relative overflow-hidden rounded-[24px] border border-slate-200/80 bg-slate-50/85 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/75">
+                        <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.24),_transparent_70%)] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_65%)]" aria-hidden="true" />
+                        <div className="relative z-10 flex w-full justify-center p-4 sm:p-8 lg:p-10">
+                          <DinoGame />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 text-xs text-gray-500 dark:text-gray-400 sm:flex-row sm:gap-4">
+                    <span className="rounded-full border border-gray-300/60 bg-white/80 px-4 py-1 font-medium tracking-[0.24em] dark:border-gray-700/60 dark:bg-gray-900/70">
+                      Live reflex meter
+                    </span>
+                    <span>Game speed tracks your personal bests in real time.</span>
+                  </div>
+                </div>
               </div>
             </section>
           </TabsContent>
