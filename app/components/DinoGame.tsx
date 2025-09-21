@@ -43,7 +43,6 @@ type GameState = "ready" | "running" | "gameover";
 export function DinoGame() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [state, setState] = useState<GameState>("ready");
-  const [score, setScore] = useState(0);
   const engineRef = useRef<DinoPhysics | null>(null);
   const [high, setHigh] = useState<number>(() => {
     const saved =
@@ -62,6 +61,10 @@ export function DinoGame() {
   const letterProgressRef = useRef(0);
   const celebrationRef = useRef({ active: false, start: 0, finished: false });
   const exitOffsetRef = useRef(0);
+  const themeRef = useRef<{ color: string; background: string }>({
+    color: "#111111",
+    background: "#ffffff",
+  });
 
   function drawDino(
     ctx: CanvasRenderingContext2D,
@@ -90,7 +93,6 @@ export function DinoGame() {
   function resetGame() {
     engineRef.current?.reset();
     time.current = 0;
-    setScore(0);
     letterProgressRef.current = 0;
     celebrationRef.current = { active: false, start: 0, finished: false };
     exitOffsetRef.current = 0;
@@ -146,6 +148,14 @@ export function DinoGame() {
     }
     const engine = engineRef.current;
 
+    const updateTheme = () => {
+      const styles = getComputedStyle(document.body);
+      themeRef.current = {
+        color: styles.color || "#111111",
+        background: styles.backgroundColor || "#ffffff",
+      };
+    };
+
     function resize() {
       const scale = Math.min(1, Math.floor(window.devicePixelRatio || 1));
       canvas.width = engine.worldWidth * scale;
@@ -154,10 +164,21 @@ export function DinoGame() {
       canvas.style.height = engine.worldHeight + "px";
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(scale, scale);
+      updateTheme();
     }
 
     resize();
     window.addEventListener("resize", resize);
+    const media = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+    const handleMedia = () => updateTheme();
+    if (media) {
+      if (typeof media.addEventListener === "function") {
+        media.addEventListener("change", handleMedia);
+      } else if (typeof media.addListener === "function") {
+        media.addListener(handleMedia);
+      }
+    }
+    updateTheme();
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
 
@@ -171,31 +192,10 @@ export function DinoGame() {
       const frameStep = dt / 16.6667;
       time.current += frameStep; // convert to ~frames
 
-      const themeColor = getComputedStyle(document.body).color || "#111";
-      const themeBg = getComputedStyle(document.body).backgroundColor || "#fff";
+      const themeColor = themeRef.current.color;
+      const themeBg = themeRef.current.background;
 
       let stepResult: ReturnType<typeof engine.step> | null = null;
-      if (state === "running") {
-        stepResult = engine.step(
-          { jump: pressed.current.up, duck: pressed.current.down },
-          frameStep
-        );
-        setScore(stepResult.score);
-        if (stepResult.done && !celebrationRef.current.active) {
-          gameOver();
-        }
-      }
-
-      if (stepResult) {
-        if (stepResult.letterSequenceProgress !== letterProgressRef.current) {
-          letterProgressRef.current = stepResult.letterSequenceProgress;
-        }
-        if (stepResult.letterSequenceJustCompleted) {
-          celebrationRef.current = { active: true, start: now, finished: false };
-          exitOffsetRef.current = 0;
-        }
-      }
-
       const celebration = celebrationRef.current;
       const celebrationElapsed = celebration.active
         ? (now - celebration.start) / 1000
@@ -212,6 +212,28 @@ export function DinoGame() {
           celebrationStage = "hold";
         } else {
           celebrationStage = "exit";
+        }
+      }
+
+      const shouldStep = !celebration.active || celebrationStage === "flash";
+
+      if (state === "running" && shouldStep) {
+        stepResult = engine.step(
+          { jump: pressed.current.up, duck: pressed.current.down },
+          frameStep
+        );
+        if (stepResult.done && !celebration.active) {
+          gameOver();
+        }
+      }
+
+      if (stepResult) {
+        if (stepResult.letterSequenceProgress !== letterProgressRef.current) {
+          letterProgressRef.current = stepResult.letterSequenceProgress;
+        }
+        if (stepResult.letterSequenceJustCompleted) {
+          celebrationRef.current = { active: true, start: now, finished: false };
+          exitOffsetRef.current = 0;
         }
       }
 
@@ -413,6 +435,13 @@ export function DinoGame() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       canvas.removeEventListener("pointerdown", onTap);
+      if (media) {
+        if (typeof media.removeEventListener === "function") {
+          media.removeEventListener("change", handleMedia);
+        } else if (typeof media.removeListener === "function") {
+          media.removeListener(handleMedia);
+        }
+      }
     };
   }, [state]);
 
